@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import ReviewsList from "@/components/ReviewsList";
-
+import ReviewForm from "@/components/ReviewForm";
 type Review = {
   id: string;
   customer_name: string | null;
@@ -51,12 +51,20 @@ export default async function Home() {
                 Book Appointment
               </Link>
 
+              <Link
+                href="/review"
+                className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-transparent px-5 py-3 text-sm font-semibold text-white/90 transition hover:bg-white/10"
+              >
+                Leave a Review
+              </Link>
+
               <a
                 href="#reviews"
                 className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-transparent px-5 py-3 text-sm font-semibold text-white/90 transition hover:bg-white/10"
               >
                 View Reviews
               </a>
+              
             </div>
           </div>
 
