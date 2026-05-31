@@ -11,6 +11,23 @@ type FormState = {
   time_slot: string; // e.g. "10:00"
 };
 
+// Validation function for phone number
+function isValidPhone(phone: string): boolean {
+  // Remove all non-digit characters
+  const digitsOnly = phone.replace(/\D/g, "");
+  // Check if at least 10 digits
+  return digitsOnly.length >= 10;
+}
+
+// Validation function for future date
+function isFutureDate(dateStr: string): boolean {
+  if (!dateStr) return false;
+  const bookingDate = new Date(dateStr);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return bookingDate >= today;
+}
+
 export default function AppointmentForm() {
   const [form, setForm] = useState<FormState>({
     customer_name: "",
@@ -28,17 +45,59 @@ export default function AppointmentForm() {
     setMessage(null);
     setLoading(true);
 
+    // Validation: Phone number
+    if (!isValidPhone(form.phone)) {
+      setMessage("Please enter a valid phone number (at least 10 digits)");
+      setLoading(false);
+      return;
+    }
+
+    // Validation: Future date
+    if (!isFutureDate(form.appointment_date)) {
+      setMessage("Please select a future date for your appointment");
+      setLoading(false);
+      return;
+    }
+
+    // Validation: Check if slot is already booked
+    const { data: existingSlot, error: checkError } = await supabase
+      .from("appointments")
+      .select("id")
+      .eq("appointment_date", form.appointment_date)
+      .eq("time_slot", form.time_slot)
+      .maybeSingle();
+
+    if (checkError) {
+      setMessage(`Error checking availability: ${checkError.message}`);
+      setLoading(false);
+      return;
+    }
+
+    if (existingSlot) {
+      setMessage("This time slot is already booked. Please choose another date or time.");
+      setLoading(false);
+      return;
+    }
+
+    // Insert appointment
     const { error } = await supabase.from("appointments").insert([form]);
 
     setLoading(false);
 
     if (error) {
-      setMessage(`Error: ${error.message}`);
+      setMessage(`Error booking appointment: ${error.message}`);
       return;
     }
 
-    setMessage("Appointment booked successfully!");
-    setForm((f) => ({ ...f, phone: "", customer_name: "", time_slot: "" }));
+    setMessage("Appointment booked successfully! We'll contact you soon.");
+    // Complete form reset
+    setForm({
+      customer_name: "",
+      phone: "",
+      service_type: "Sticker Apply",
+      appointment_date: "",
+      time_slot: "",
+    });
   }
 
   return (
@@ -56,11 +115,14 @@ export default function AppointmentForm() {
       <div>
         <label className="block text-sm font-medium">Phone</label>
         <input
+          type="tel"
           className="mt-1 w-full rounded border px-3 py-2"
+          placeholder="e.g., (123) 456-7890"
           value={form.phone}
           onChange={(e) => setForm({ ...form, phone: e.target.value })}
           required
         />
+        <p className="mt-1 text-xs text-gray-500">At least 10 digits required</p>
       </div>
 
       <div>
@@ -82,12 +144,14 @@ export default function AppointmentForm() {
           <input
             type="date"
             className="mt-1 w-full rounded border px-3 py-2"
+            min={new Date().toISOString().split('T')[0]}
             value={form.appointment_date}
             onChange={(e) =>
               setForm({ ...form, appointment_date: e.target.value })
             }
             required
           />
+          <p className="mt-1 text-xs text-gray-500">Future dates only</p>
         </div>
 
         <div>
@@ -111,9 +175,13 @@ export default function AppointmentForm() {
       </button>
 
       {message && (
-        <p className="text-sm text-gray-700">
+        <div className={`rounded-lg p-3 text-sm ${
+          message.includes("Error") || message.includes("already") || message.includes("Please")
+            ? "border border-red-500/20 bg-red-950/30 text-red-200"
+            : "border border-emerald-500/20 bg-emerald-950/30 text-emerald-200"
+        }`}>
           {message}
-        </p>
+        </div>
       )}
     </form>
   );

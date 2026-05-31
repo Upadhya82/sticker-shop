@@ -24,7 +24,7 @@ export default function ReviewPage() {
         </div>
 
         <div className="mt-6">
-            Hello review
+            <ReviewForm />
         </div>
       </section>
     </main>
