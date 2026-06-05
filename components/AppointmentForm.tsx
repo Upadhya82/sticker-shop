@@ -28,6 +28,21 @@ function isFutureDate(dateStr: string): boolean {
   return bookingDate >= today;
 }
 
+// Convert 12-hour format to 24-hour format
+// "09:00 AM" -> "09:00", "01:00 PM" -> "13:00"
+function convertTo24Hour(time12h: string): string {
+  const [time, period] = time12h.split(" ");
+  let [hours, minutes] = time.split(":").map(Number);
+
+  if (period === "PM" && hours !== 12) {
+    hours += 12;
+  } else if (period === "AM" && hours === 12) {
+    hours = 0;
+  }
+
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
 export default function AppointmentForm() {
   const [form, setForm] = useState<FormState>({
     customer_name: "",
@@ -59,12 +74,59 @@ export default function AppointmentForm() {
       return;
     }
 
+    // Validation: Check if date is blocked
+    const { data: blockedDate, error: blockedError } = await supabase
+      .from("blocked_dates")
+      .select("reason")
+      .eq("date", form.appointment_date)
+      .maybeSingle();
+
+    if (blockedError) {
+      setMessage(`Error checking availability: ${blockedError.message}`);
+      setLoading(false);
+      return;
+    }
+
+    if (blockedDate) {
+      setMessage(
+        `❌ This date is unavailable: ${blockedDate.reason}. Please choose another date.`
+      );
+      setLoading(false);
+      return;
+    }
+
+    // Validation: Check if time slot is blocked
+    const time24hForCheck = convertTo24Hour(form.time_slot);
+    const { data: blockedTimeSlot, error: blockedSlotError } = await supabase
+      .from("blocked_time_slots")
+      .select("reason")
+      .eq("date", form.appointment_date)
+      .eq("time_slot", time24hForCheck)
+      .maybeSingle();
+
+    if (blockedSlotError) {
+      setMessage(`Error checking availability: ${blockedSlotError.message}`);
+      setLoading(false);
+      return;
+    }
+
+    if (blockedTimeSlot) {
+      setMessage(
+        `❌ ${form.time_slot} is not available on this date: ${blockedTimeSlot.reason}. Please choose another time.`
+      );
+      setLoading(false);
+      return;
+    }
+
+    // Convert time format to 24-hour (09:00 AM -> 09:00)
+    const time24h = convertTo24Hour(form.time_slot);
+
     // Validation: Check if slot is already booked
     const { data: existingSlot, error: checkError } = await supabase
       .from("appointments")
       .select("id")
       .eq("appointment_date", form.appointment_date)
-      .eq("time_slot", form.time_slot)
+      .eq("time_slot", time24h)
       .maybeSingle();
 
     if (checkError) {
@@ -79,8 +141,13 @@ export default function AppointmentForm() {
       return;
     }
 
-    // Insert appointment
-    const { error } = await supabase.from("appointments").insert([form]);
+    // Insert appointment with converted time format
+    const { error } = await supabase.from("appointments").insert([
+      {
+        ...form,
+        time_slot: time24h, // Use 24-hour format for database
+      },
+    ]);
 
     setLoading(false);
 
@@ -156,13 +223,22 @@ export default function AppointmentForm() {
 
         <div>
           <label className="block text-sm font-medium">Time Slot</label>
-          <input
-            type="time"
+          <select
             className="mt-1 w-full rounded border px-3 py-2"
             value={form.time_slot}
             onChange={(e) => setForm({ ...form, time_slot: e.target.value })}
             required
-          />
+          >
+            <option value="">Select a time slot</option>
+            <option value="09:00 AM">09:00 AM</option>
+            <option value="10:00 AM">10:00 AM</option>
+            <option value="11:00 AM">11:00 AM</option>
+            <option value="12:00 PM">12:00 PM</option>
+            <option value="01:00 PM">01:00 PM</option>
+            <option value="02:00 PM">02:00 PM</option>
+            <option value="03:00 PM">03:00 PM</option>
+            <option value="04:00 PM">04:00 PM</option>
+          </select>
         </div>
       </div>
 
