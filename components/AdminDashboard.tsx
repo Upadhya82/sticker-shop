@@ -42,6 +42,7 @@ export default function AdminDashboard() {
   const [blockReason, setBlockReason] = useState("");
   const [blockingDate, setBlockingDate] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const [showDateDetails, setShowDateDetails] = useState(false);
 
   // Load appointments and blocked dates
   useEffect(() => {
@@ -203,6 +204,28 @@ export default function AdminDashboard() {
     }
   }
 
+  function handleDateClick(date: string) {
+    setSelectedDate(date);
+    setShowDateDetails(true);
+  }
+
+  function getAppointmentsForSelectedDate() {
+    return appointments.filter(apt => apt.appointment_date === selectedDate);
+  }
+
+  function convertTo12Hour(time24h: string): string {
+    let [hours, minutes] = time24h.split(":").map(Number);
+    const period = hours >= 12 ? "PM" : "AM";
+
+    if (hours > 12) {
+      hours -= 12;
+    } else if (hours === 0) {
+      hours = 12;
+    }
+
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")} ${period}`;
+  }
+
   if (loading && appointments.length === 0) {
     return (
       <div className="rounded-lg border border-white/10 bg-white/5 p-8 text-center">
@@ -259,6 +282,7 @@ export default function AdminDashboard() {
             blockedDates={blockedDates}
             selectedDate={selectedDate}
             setSelectedDate={setSelectedDate}
+            onDateClick={handleDateClick}
           />
         </div>
 
@@ -343,6 +367,88 @@ export default function AdminDashboard() {
         onBlockTimeSlot={blockTimeSlot}
         onUnblockTimeSlot={unblockTimeSlot}
       />
+
+      {/* Date Details Modal */}
+      {showDateDetails && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-black p-6">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div>
+                <h3 className="text-2xl font-bold text-white">
+                  {new Date(selectedDate).toLocaleDateString("en-US", {
+                    weekday: "long",
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })}
+                </h3>
+                <p className="mt-1 text-sm text-zinc-400">
+                  {getAppointmentsForSelectedDate().length} appointment(s)
+                </p>
+              </div>
+              <button
+                onClick={() => setShowDateDetails(false)}
+                className="rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                Close ✕
+              </button>
+            </div>
+
+            {/* Appointments List */}
+            <div className="mt-6 space-y-3 max-h-96 overflow-y-auto">
+              {getAppointmentsForSelectedDate().length === 0 ? (
+                <div className="rounded-lg border border-white/10 bg-white/5 p-6 text-center">
+                  <p className="text-zinc-400">No appointments on this date</p>
+                </div>
+              ) : (
+                getAppointmentsForSelectedDate().map((apt) => (
+                  <div
+                    key={apt.id}
+                    className="rounded-lg border border-emerald-500/20 bg-emerald-950/30 p-4"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-lg font-bold text-white">
+                            {convertTo12Hour(apt.time_slot)}
+                          </p>
+                          <span className="rounded-full bg-emerald-500/20 px-2 py-1 text-xs font-semibold text-emerald-300">
+                            {apt.service_type}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 space-y-1">
+                          <p className="text-sm text-zinc-300">
+                            👤 <span className="font-semibold">{apt.customer_name}</span>
+                          </p>
+                          <p className="text-sm text-zinc-300">
+                            📱 <span className="font-mono">{apt.phone}</span>
+                          </p>
+                          <p className="text-xs text-zinc-500">
+                            Booked: {new Date(apt.created_at).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          deleteAppointment(apt.id);
+                          setShowDateDetails(false);
+                        }}
+                        className="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+                        title="Delete appointment"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Appointments List */}
       <AppointmentsList

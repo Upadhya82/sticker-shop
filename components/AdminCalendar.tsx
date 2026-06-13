@@ -24,6 +24,7 @@ interface AdminCalendarProps {
   blockedDates: BlockedDate[];
   selectedDate: string;
   setSelectedDate: (date: string) => void;
+  onDateClick?: (date: string) => void;
 }
 
 export default function AdminCalendar({
@@ -31,6 +32,7 @@ export default function AdminCalendar({
   blockedDates,
   selectedDate,
   setSelectedDate,
+  onDateClick,
 }: AdminCalendarProps) {
   const [year, month] = selectedDate.split("-").slice(0, 2);
   const currentDate = new Date(`${year}-${month}-01`);
@@ -135,21 +137,22 @@ export default function AdminCalendar({
           return (
             <div
               key={day}
-              className={`aspect-square rounded-lg p-1 text-xs font-semibold transition ${
+              onClick={() => onDateClick && onDateClick(dateStr)}
+              className={`aspect-square rounded-lg p-1 text-xs font-semibold transition cursor-pointer ${
                 blocked
-                  ? "border-2 border-red-500 bg-red-950/50"
+                  ? "border-2 border-red-500 bg-red-950/50 hover:bg-red-950/70"
                   : isToday
-                  ? "border-2 border-blue-500 bg-blue-950/50"
+                  ? "border-2 border-blue-500 bg-blue-950/50 hover:bg-blue-950/70"
                   : dayAppointments.length > 0
-                  ? "border-2 border-emerald-500 bg-emerald-950/50"
+                  ? "border-2 border-emerald-500 bg-emerald-950/50 hover:bg-emerald-950/70"
                   : "border border-white/10 bg-white/5 hover:bg-white/10"
               }`}
               title={
                 blocked
                   ? `Blocked: ${blockedReason}`
                   : dayAppointments.length > 0
-                  ? `${dayAppointments.length} appointment(s)`
-                  : ""
+                  ? `${dayAppointments.length} appointment(s) - Click to view`
+                  : "Click to view details"
               }
             >
               <div className="flex flex-col items-center justify-center h-full">
