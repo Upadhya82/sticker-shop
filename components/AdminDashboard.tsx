@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
+import { formatDisplayDate, parseLocalDate } from "@/lib/date-utils";
 import AdminCalendar from "./AdminCalendar";
 import AppointmentsList from "./AppointmentsList";
 import TimeSlotBlocker from "./TimeSlotBlocker";
@@ -78,9 +79,9 @@ export default function AdminDashboard() {
 
       if (slotsError) throw slotsError;
       setBlockedTimeSlots((blockedSlotsData as BlockedTimeSlot[]) || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error loading data:", error);
-      setMessage(`❌ Error loading data: ${error.message}`);
+      setMessage(`❌ Error loading data: ${(error as Error).message}`);
     } finally {
       setLoading(false);
     }
@@ -105,8 +106,8 @@ export default function AdminDashboard() {
       setBlockingDate("");
       setBlockReason("");
       await loadData();
-    } catch (error: any) {
-      setMessage(`❌ Error: ${error.message}`);
+    } catch (error: unknown) {
+      setMessage(`❌ Error: ${(error as Error).message}`);
     } finally {
       setLoading(false);
     }
@@ -124,8 +125,8 @@ export default function AdminDashboard() {
 
       setMessage("✅ Date unblocked successfully");
       await loadData();
-    } catch (error: any) {
-      setMessage(`❌ Error: ${error.message}`);
+    } catch (error: unknown) {
+      setMessage(`❌ Error: ${(error as Error).message}`);
     } finally {
       setLoading(false);
     }
@@ -153,11 +154,11 @@ export default function AdminDashboard() {
 
       setMessage("✅ Time slot blocked successfully");
       await loadData();
-    } catch (error: any) {
-      if (error.message.includes("duplicate")) {
+    } catch (error: unknown) {
+      if ((error as Error).message.includes("duplicate")) {
         setMessage("❌ This time slot is already blocked on this date");
       } else {
-        setMessage(`❌ Error: ${error.message}`);
+        setMessage(`❌ Error: ${(error as Error).message}`);
       }
     } finally {
       setLoading(false);
@@ -176,8 +177,8 @@ export default function AdminDashboard() {
 
       setMessage("✅ Time slot unblocked successfully");
       await loadData();
-    } catch (error: any) {
-      setMessage(`❌ Error: ${error.message}`);
+    } catch (error: unknown) {
+      setMessage(`❌ Error: ${(error as Error).message}`);
     } finally {
       setLoading(false);
     }
@@ -197,8 +198,8 @@ export default function AdminDashboard() {
 
       setMessage("✅ Appointment deleted successfully");
       await loadData();
-    } catch (error: any) {
-      setMessage(`❌ Error: ${error.message}`);
+    } catch (error: unknown) {
+      setMessage(`❌ Error: ${(error as Error).message}`);
     } finally {
       setLoading(false);
     }
@@ -214,7 +215,9 @@ export default function AdminDashboard() {
   }
 
   function convertTo12Hour(time24h: string): string {
-    let [hours, minutes] = time24h.split(":").map(Number);
+    const parts = time24h.split(":").map(Number);
+    let hours = parts[0];
+    const minutes = parts[1];
     const period = hours >= 12 ? "PM" : "AM";
 
     if (hours > 12) {
@@ -237,14 +240,7 @@ export default function AdminDashboard() {
     );
   }
 
-  // Debug info
-  const debugInfo = {
-    appointmentsLoaded: appointments.length,
-    blockedDatesLoaded: blockedDates.length,
-    blockedSlotsLoaded: blockedTimeSlots.length,
-    isLoading: loading,
-    timestamp: new Date().toLocaleTimeString(),
-  };
+  // Debug info removed
 
   return (
     <div className="space-y-8">
@@ -339,7 +335,7 @@ export default function AdminDashboard() {
                   >
                     <div className="flex-1">
                       <p className="font-semibold text-red-200">
-                        {new Date(blockedDate.date).toLocaleDateString()}
+                        {formatDisplayDate(blockedDate.date)}
                       </p>
                       <p className="text-red-300/80">{blockedDate.reason}</p>
                     </div>
@@ -376,7 +372,7 @@ export default function AdminDashboard() {
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <div>
                 <h3 className="text-2xl font-bold text-white">
-                  {new Date(selectedDate).toLocaleDateString("en-US", {
+                  {parseLocalDate(selectedDate).toLocaleDateString("en-US", {
                     weekday: "long",
                     year: "numeric",
                     month: "long",

@@ -1,7 +1,8 @@
+export const dynamic = "force-dynamic";
+
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import ReviewsList from "@/components/ReviewsList";
-import ReviewForm from "@/components/ReviewForm";
 type Review = {
   id: string;
   customer_name: string | null;

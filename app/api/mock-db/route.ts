@@ -4,36 +4,44 @@ import path from "path";
 
 const dbPath = path.join(process.cwd(), "mock_db.json");
 
+type DbSchema = {
+  reviews: Array<Record<string, unknown>>;
+  appointments: Array<Record<string, unknown>>;
+  blocked_dates: Array<Record<string, unknown>>;
+  blocked_time_slots: Array<Record<string, unknown>>;
+  [key: string]: Array<Record<string, unknown>>;
+};
+
 // Helper to get all data
-function readDb() {
+function readDb(): DbSchema {
   if (!fs.existsSync(dbPath)) {
-    const initialDb = {
+    const initialDb: DbSchema = {
       reviews: [
         {
           id: "r1",
           customer_name: "Alice Johnson",
           rating: 5,
           comment: "Amazing sticker application! Extremely clean lines and professional installation.",
-          created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
+          created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
         },
         {
           id: "r2",
           customer_name: "Bob Miller",
           rating: 4,
           comment: "Great experience, sticker looks perfect on my laptop. Quick and friendly service.",
-          created_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString()
+          created_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
         },
         {
           id: "r3",
           customer_name: "Charlie Davis",
           rating: 5,
           comment: "Excellent custom design assistance. They helped me refine the logo and it looks great!",
-          created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-        }
+          created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+        },
       ],
       appointments: [],
       blocked_dates: [],
-      blocked_time_slots: []
+      blocked_time_slots: [],
     };
     fs.writeFileSync(dbPath, JSON.stringify(initialDb, null, 2), "utf-8");
     return initialDb;
@@ -41,7 +49,7 @@ function readDb() {
 
   try {
     const data = fs.readFileSync(dbPath, "utf-8");
-    return JSON.parse(data);
+    return JSON.parse(data) as DbSchema;
   } catch (e) {
     console.error("Error reading mock DB:", e);
     return { reviews: [], appointments: [], blocked_dates: [], blocked_time_slots: [] };
@@ -49,7 +57,7 @@ function readDb() {
 }
 
 // Helper to write all data
-function writeDb(data: any) {
+function writeDb(data: DbSchema) {
   try {
     fs.writeFileSync(dbPath, JSON.stringify(data, null, 2), "utf-8");
   } catch (e) {
@@ -80,7 +88,7 @@ export async function POST(request: Request) {
 
     if (action === "insert") {
       const items = Array.isArray(data) ? data : [data];
-      const newItems = items.map((item: any) => ({
+      const newItems = items.map((item: Record<string, unknown>) => ({
         id: item.id || Math.random().toString(36).substring(2, 9),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -92,14 +100,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ data: Array.isArray(data) ? newItems : newItems[0], error: null });
     }
 
+    if (action === "update") {
+      db[table] = db[table].map((item: Record<string, unknown>) => {
+        if (item[column] === value) {
+          return {
+            ...item,
+            ...data,
+            updated_at: new Date().toISOString(),
+          };
+        }
+        return item;
+      });
+      writeDb(db);
+      return NextResponse.json({ data: null, error: null });
+    }
+
     if (action === "delete") {
-      db[table] = db[table].filter((item: any) => item[column] !== value);
+      db[table] = db[table].filter((item: Record<string, unknown>) => item[column] !== value);
       writeDb(db);
       return NextResponse.json({ data: null, error: null });
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

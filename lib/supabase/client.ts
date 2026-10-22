@@ -3,8 +3,14 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-key";
 
-// Use real client if explicitly requested
-const useRealSupabase = process.env.USE_REAL_SUPABASE === "true";
+// Auto-detect: use real Supabase only if valid credentials are set (not placeholder values)
+const supabaseConfigured =
+  Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
+  !process.env.NEXT_PUBLIC_SUPABASE_URL?.includes("placeholder") &&
+  Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) &&
+  !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.includes("placeholder");
+
+const useRealSupabase = supabaseConfigured || process.env.USE_REAL_SUPABASE === "true";
 
 let fs: any;
 let path: any;

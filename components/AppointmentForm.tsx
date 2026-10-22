@@ -1,46 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
+import {
+  getTodayDateString,
+  isFutureOrTodayDate,
+  convertTo24Hour,
+  isTimeSlotInPast,
+} from "@/lib/date-utils";
 
 type FormState = {
   customer_name: string;
   phone: string;
   service_type: string;
-  appointment_date: string; // YYYY-MM-DD
-  time_slot: string; // e.g. "10:00"
+  appointment_date: string;
+  time_slot: string;
 };
 
-// Validation function for phone number
+const ALL_SLOTS = [
+  "09:00 AM",
+  "10:00 AM",
+  "11:00 AM",
+  "12:00 PM",
+  "01:00 PM",
+  "02:00 PM",
+  "03:00 PM",
+  "04:00 PM",
+];
+
 function isValidPhone(phone: string): boolean {
-  // Remove all non-digit characters
   const digitsOnly = phone.replace(/\D/g, "");
-  // Check if at least 10 digits
   return digitsOnly.length >= 10;
-}
-
-// Validation function for future date
-function isFutureDate(dateStr: string): boolean {
-  if (!dateStr) return false;
-  const bookingDate = new Date(dateStr);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return bookingDate >= today;
-}
-
-// Convert 12-hour format to 24-hour format
-// "09:00 AM" -> "09:00", "01:00 PM" -> "13:00"
-function convertTo24Hour(time12h: string): string {
-  const [time, period] = time12h.split(" ");
-  let [hours, minutes] = time.split(":").map(Number);
-
-  if (period === "PM" && hours !== 12) {
-    hours += 12;
-  } else if (period === "AM" && hours === 12) {
-    hours = 0;
-  }
-
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
 export default function AppointmentForm() {
@@ -54,110 +44,123 @@ export default function AppointmentForm() {
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [unavailableSlots, setUnavailableSlots] = useState<string[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+
+  // Whenever the date changes, fetch unavailable slots for that date
+  useEffect(() => {
+    if (!form.appointment_date) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setUnavailableSlots([]);
+      return;
+    }
+
+    async function fetchUnavailableSlots() {
+      setLoadingSlots(true);
+      setForm((f) => ({ ...f, time_slot: "" }));
+      setMessage(null);
+
+      try {
+        // Check if date is fully blocked
+        const { data: blockedDate } = await supabase
+          .from("blocked_dates")
+          .select("reason")
+          .eq("date", form.appointment_date)
+          .maybeSingle();
+
+        if (blockedDate) {
+          setMessage(`❌ This date is unavailable: ${(blockedDate as { reason: string }).reason}. Please choose another date.`);
+          setUnavailableSlots(ALL_SLOTS.map(convertTo24Hour));
+          setLoadingSlots(false);
+          return;
+        }
+
+        // Get already-booked slots for this date
+        const { data: booked } = await supabase
+          .from("appointments")
+          .select("time_slot")
+          .eq("appointment_date", form.appointment_date);
+
+        // Get admin-blocked time slots for this date
+        const { data: blockedSlots } = await supabase
+          .from("blocked_time_slots")
+          .select("time_slot")
+          .eq("date", form.appointment_date);
+
+        const bookedTimes = (booked as Array<{ time_slot: string }> | null)?.map((a) => a.time_slot) ?? [];
+        const blockedTimes = (blockedSlots as Array<{ time_slot: string }> | null)?.map((s) => s.time_slot) ?? [];
+        setUnavailableSlots([...new Set([...bookedTimes, ...blockedTimes])]);
+      } catch {
+        setUnavailableSlots([]);
+      } finally {
+        setLoadingSlots(false);
+      }
+    }
+
+    fetchUnavailableSlots();
+  }, [form.appointment_date]);
+
+  function isSlotUnavailable(slot12h: string): boolean {
+    const slot24h = convertTo24Hour(slot12h);
+    // Disable past time slots for today
+    if (isTimeSlotInPast(form.appointment_date, slot24h)) return true;
+    return unavailableSlots.includes(slot24h);
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMessage(null);
+    setIsSuccess(false);
     setLoading(true);
 
-    // Validation: Phone number
     if (!isValidPhone(form.phone)) {
       setMessage("Please enter a valid phone number (at least 10 digits)");
       setLoading(false);
       return;
     }
 
-    // Validation: Future date
-    if (!isFutureDate(form.appointment_date)) {
-      setMessage("Please select a future date for your appointment");
+    if (!isFutureOrTodayDate(form.appointment_date)) {
+      setMessage("Please select today or a future date for your appointment");
       setLoading(false);
       return;
     }
 
-    // Validation: Check if date is blocked
-    const { data: blockedDate, error: blockedError } = await supabase
-      .from("blocked_dates")
-      .select("reason")
-      .eq("date", form.appointment_date)
-      .maybeSingle();
-
-    if (blockedError) {
-      setMessage(`Error checking availability: ${blockedError.message}`);
+    if (!form.time_slot) {
+      setMessage("Please select a time slot");
       setLoading(false);
       return;
     }
 
-    if (blockedDate) {
-      setMessage(
-        `❌ This date is unavailable: ${blockedDate.reason}. Please choose another date.`
-      );
-      setLoading(false);
-      return;
-    }
-
-    // Validation: Check if time slot is blocked
-    const time24hForCheck = convertTo24Hour(form.time_slot);
-    const { data: blockedTimeSlot, error: blockedSlotError } = await supabase
-      .from("blocked_time_slots")
-      .select("reason")
-      .eq("date", form.appointment_date)
-      .eq("time_slot", time24hForCheck)
-      .maybeSingle();
-
-    if (blockedSlotError) {
-      setMessage(`Error checking availability: ${blockedSlotError.message}`);
-      setLoading(false);
-      return;
-    }
-
-    if (blockedTimeSlot) {
-      setMessage(
-        `❌ ${form.time_slot} is not available on this date: ${blockedTimeSlot.reason}. Please choose another time.`
-      );
-      setLoading(false);
-      return;
-    }
-
-    // Convert time format to 24-hour (09:00 AM -> 09:00)
     const time24h = convertTo24Hour(form.time_slot);
 
-    // Validation: Check if slot is already booked
-    const { data: existingSlot, error: checkError } = await supabase
+    // Final server-side double-check before inserting
+    const { data: existingSlot } = await supabase
       .from("appointments")
       .select("id")
       .eq("appointment_date", form.appointment_date)
       .eq("time_slot", time24h)
       .maybeSingle();
 
-    if (checkError) {
-      setMessage(`Error checking availability: ${checkError.message}`);
-      setLoading(false);
-      return;
-    }
-
     if (existingSlot) {
-      setMessage("This time slot is already booked. Please choose another date or time.");
+      setMessage("This time slot was just booked. Please choose another time.");
       setLoading(false);
       return;
     }
 
-    // Insert appointment with converted time format
     const { error } = await supabase.from("appointments").insert([
-      {
-        ...form,
-        time_slot: time24h, // Use 24-hour format for database
-      },
+      { ...form, time_slot: time24h },
     ]);
 
     setLoading(false);
 
     if (error) {
-      setMessage(`Error booking appointment: ${error.message}`);
+      setMessage(`Error booking appointment: ${(error as { message: string }).message}`);
       return;
     }
 
-    setMessage("Appointment booked successfully! We'll contact you soon.");
-    // Complete form reset
+    setIsSuccess(true);
+    setMessage("✅ Appointment booked successfully! We'll contact you soon.");
     setForm({
       customer_name: "",
       phone: "",
@@ -165,97 +168,108 @@ export default function AppointmentForm() {
       appointment_date: "",
       time_slot: "",
     });
+    setUnavailableSlots([]);
   }
+
+  const today = getTodayDateString();
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <div>
-        <label className="block text-sm font-medium">Name</label>
+        <label className="block text-sm font-medium text-zinc-300">Name</label>
         <input
-          className="mt-1 w-full rounded border px-3 py-2"
+          className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:border-white/20 focus:outline-none"
           value={form.customer_name}
           onChange={(e) => setForm({ ...form, customer_name: e.target.value })}
+          placeholder="Your full name"
           required
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium">Phone</label>
+        <label className="block text-sm font-medium text-zinc-300">Phone</label>
         <input
           type="tel"
-          className="mt-1 w-full rounded border px-3 py-2"
-          placeholder="e.g., (123) 456-7890"
+          className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:border-white/20 focus:outline-none"
+          placeholder="e.g., 0712345678"
           value={form.phone}
           onChange={(e) => setForm({ ...form, phone: e.target.value })}
           required
         />
-        <p className="mt-1 text-xs text-gray-500">At least 10 digits required</p>
+        <p className="mt-1 text-xs text-zinc-500">At least 10 digits required</p>
       </div>
 
       <div>
-        <label className="block text-sm font-medium">Service Type</label>
+        <label className="block text-sm font-medium text-zinc-300">Service Type</label>
         <select
-          className="mt-1 w-full rounded border px-3 py-2"
+          className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white focus:border-white/20 focus:outline-none"
           value={form.service_type}
           onChange={(e) => setForm({ ...form, service_type: e.target.value })}
         >
-          <option>Sticker Apply</option>
-          <option>Sticker Remove</option>
-          <option>Custom Design</option>
+          <option value="Sticker Apply">Sticker Apply</option>
+          <option value="Sticker Remove">Sticker Remove</option>
+          <option value="Custom Design">Custom Design</option>
         </select>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <label className="block text-sm font-medium">Date</label>
+          <label className="block text-sm font-medium text-zinc-300">Date</label>
           <input
             type="date"
-            className="mt-1 w-full rounded border px-3 py-2"
-            min={new Date().toISOString().split('T')[0]}
+            className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white focus:border-white/20 focus:outline-none"
+            min={today}
             value={form.appointment_date}
-            onChange={(e) =>
-              setForm({ ...form, appointment_date: e.target.value })
-            }
+            onChange={(e) => setForm({ ...form, appointment_date: e.target.value })}
             required
           />
-          <p className="mt-1 text-xs text-gray-500">Future dates only</p>
+          <p className="mt-1 text-xs text-zinc-500">Today or future dates only</p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium">Time Slot</label>
-          <select
-            className="mt-1 w-full rounded border px-3 py-2"
-            value={form.time_slot}
-            onChange={(e) => setForm({ ...form, time_slot: e.target.value })}
-            required
-          >
-            <option value="">Select a time slot</option>
-            <option value="09:00 AM">09:00 AM</option>
-            <option value="10:00 AM">10:00 AM</option>
-            <option value="11:00 AM">11:00 AM</option>
-            <option value="12:00 PM">12:00 PM</option>
-            <option value="01:00 PM">01:00 PM</option>
-            <option value="02:00 PM">02:00 PM</option>
-            <option value="03:00 PM">03:00 PM</option>
-            <option value="04:00 PM">04:00 PM</option>
-          </select>
+          <label className="block text-sm font-medium text-zinc-300">Time Slot</label>
+          {loadingSlots ? (
+            <div className="mt-1 flex h-10 items-center rounded-lg border border-white/10 bg-black/40 px-3 text-sm text-zinc-500">
+              Checking availability...
+            </div>
+          ) : (
+            <select
+              className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white focus:border-white/20 focus:outline-none disabled:opacity-50"
+              value={form.time_slot}
+              onChange={(e) => setForm({ ...form, time_slot: e.target.value })}
+              required
+              disabled={!form.appointment_date || loadingSlots}
+            >
+              <option value="">{form.appointment_date ? "Select a time slot" : "Pick a date first"}</option>
+              {ALL_SLOTS.map((slot) => {
+                const unavailable = isSlotUnavailable(slot);
+                return (
+                  <option key={slot} value={slot} disabled={unavailable}>
+                    {slot}{unavailable ? " — Unavailable" : ""}
+                  </option>
+                );
+              })}
+            </select>
+          )}
         </div>
       </div>
 
       <button
         type="submit"
-        disabled={loading}
-        className="w-full rounded bg-black px-4 py-2 text-white disabled:opacity-60"
+        disabled={loading || loadingSlots}
+        className="w-full rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-zinc-200 disabled:opacity-60"
       >
         {loading ? "Booking..." : "Book Appointment"}
       </button>
 
       {message && (
-        <div className={`rounded-lg p-3 text-sm ${
-          message.includes("Error") || message.includes("already") || message.includes("Please")
-            ? "border border-red-500/20 bg-red-950/30 text-red-200"
-            : "border border-emerald-500/20 bg-emerald-950/30 text-emerald-200"
-        }`}>
+        <div
+          className={`rounded-lg p-3 text-sm ${
+            isSuccess
+              ? "border border-emerald-500/20 bg-emerald-950/30 text-emerald-200"
+              : "border border-red-500/20 bg-red-950/30 text-red-200"
+          }`}
+        >
           {message}
         </div>
       )}
