@@ -37,6 +37,42 @@ type Appointment = {
   created_at: string;
 };
 
+const DEMO_EMAIL = 'owner-demo@ruwansticker.test';
+const DEMO_PASSWORD = 'TestOwner123!';
+
+function getDemoAppointments(): Appointment[] {
+  const dateAfter = (days: number) => {
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const now = new Date().toISOString();
+
+  return [
+    {
+      id: 'demo-appointment-1',
+      customer_name: 'Kasun Perera (Demo)',
+      phone: 'Demo customer',
+      service_type: 'Car window sticker',
+      appointment_date: dateAfter(1),
+      time_slot: '09:00',
+      created_at: now,
+    },
+    {
+      id: 'demo-appointment-2',
+      customer_name: 'Nimali Fernando (Demo)',
+      phone: 'Demo customer',
+      service_type: 'Vehicle branding',
+      appointment_date: dateAfter(2),
+      time_slot: '13:30',
+      created_at: now,
+    },
+  ];
+}
+
 function isAdmin(session: Session | null) {
   return session?.user.app_metadata?.role === 'admin';
 }
@@ -50,6 +86,7 @@ function formatDate(date: string) {
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
+  const [demoMode, setDemoMode] = useState(false);
   const [authReady, setAuthReady] = useState(!supabase);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -59,6 +96,10 @@ export default function App() {
   const [pushStatus, setPushStatus] = useState('');
 
   const loadAppointments = useCallback(async () => {
+    if (__DEV__ && demoMode) {
+      setAppointments(getDemoAppointments());
+      return;
+    }
     if (!supabase || !isAdmin(session)) return;
     setLoading(true);
     setError('');
@@ -70,10 +111,10 @@ export default function App() {
     if (queryError) setError(queryError.message);
     else setAppointments((data ?? []) as Appointment[]);
     setLoading(false);
-  }, [session]);
+  }, [demoMode, session]);
 
   useEffect(() => {
-    if (!supabase) return;
+    if (!supabase || demoMode) return;
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       setAuthReady(true);
@@ -81,11 +122,11 @@ export default function App() {
       else setAppointments([]);
     });
     return () => subscription.unsubscribe();
-  }, [loadAppointments]);
+  }, [demoMode, loadAppointments]);
 
   useEffect(() => {
     const client = supabase;
-    if (!client || !isAdmin(session)) return;
+    if (!client || demoMode || !isAdmin(session)) return;
     let canceled = false;
 
     async function registerPushDevice() {
@@ -129,10 +170,19 @@ export default function App() {
 
     void registerPushDevice();
     return () => { canceled = true; };
-  }, [session]);
+  }, [demoMode, session]);
 
   async function signIn() {
-    if (!supabase) return;
+    if (__DEV__ && email.trim().toLowerCase() === DEMO_EMAIL && password === DEMO_PASSWORD) {
+      setError('');
+      setDemoMode(true);
+      setAppointments(getDemoAppointments());
+      return;
+    }
+    if (!supabase) {
+      setError('Demo sign in only: use the test email and password shown below.');
+      return;
+    }
     setError('');
     setLoading(true);
     const { data, error: signInError } = await supabase.auth.signInWithPassword({
@@ -150,6 +200,13 @@ export default function App() {
   }
 
   async function signOut() {
+    if (demoMode) {
+      setDemoMode(false);
+      setAppointments([]);
+      setEmail('');
+      setPassword('');
+      return;
+    }
     if (!supabase) return;
     const { error: signOutError } = await supabase.auth.signOut();
     if (signOutError) setError(signOutError.message);
@@ -161,21 +218,31 @@ export default function App() {
 
   if (!authReady) return <Centered><ActivityIndicator color="#fbbf24" /></Centered>;
 
-  if (!supabase) {
+  if (!supabase && !__DEV__) {
     return <Centered>
       <Text style={styles.title}>Connect Supabase</Text>
       <Text style={styles.muted}>Copy .env.example to .env and add the project URL and publishable key.</Text>
     </Centered>;
   }
 
-  if (!isAdmin(session)) {
+  if (!demoMode && !isAdmin(session)) {
     return <SafeAreaView style={styles.safe}>
       <StatusBar style="light" />
       <KeyboardAvoidingView style={styles.center} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.loginCard}>
           <Text style={styles.eyebrow}>RUWAN STICKER</Text>
           <Text style={styles.title}>Owner sign in</Text>
-          <Text style={styles.muted}>Sign in with the admin account created in Supabase.</Text>
+          <Text style={styles.muted}>
+            {supabase ? 'Sign in with the admin account created in Supabase.' : 'Use the local demo account to preview the owner app.'}
+          </Text>
+          {__DEV__ ? (
+            <View style={styles.demoBox}>
+              <Text style={styles.demoTitle}>Local test account (development only)</Text>
+              <Text style={styles.demoText}>Email: {DEMO_EMAIL}</Text>
+              <Text style={styles.demoText}>Password: {DEMO_PASSWORD}</Text>
+              <Text style={styles.demoNote}>This opens sample bookings. It does not connect to the live shop data.</Text>
+            </View>
+          ) : null}
           <TextInput autoCapitalize="none" autoCorrect={false} keyboardType="email-address" placeholder="Email" placeholderTextColor="#71717a" value={email} onChangeText={setEmail} style={styles.input} />
           <TextInput secureTextEntry placeholder="Password" placeholderTextColor="#71717a" value={password} onChangeText={setPassword} style={styles.input} />
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
@@ -192,10 +259,11 @@ export default function App() {
     <View style={styles.header}>
       <View>
         <Text style={styles.eyebrow}>RUWAN STICKER</Text>
-        <Text style={styles.title}>Appointments</Text>
+        <Text style={styles.title}>{demoMode ? 'Demo Appointments' : 'Appointments'}</Text>
       </View>
       <Pressable onPress={signOut} accessibilityRole="button"><Text style={styles.link}>Sign out</Text></Pressable>
     </View>
+    {demoMode ? <Text style={styles.demoBanner}>DEMO MODE · Sample bookings only · No live data changes</Text> : null}
     <View style={styles.toolbar}>
       <Text style={styles.muted}>{appointments.length} booking{appointments.length === 1 ? '' : 's'}</Text>
       <Pressable onPress={loadAppointments} accessibilityRole="button" style={styles.refresh}><Text style={styles.refreshText}>Refresh</Text></Pressable>
@@ -208,7 +276,12 @@ export default function App() {
       data={appointments}
       keyExtractor={(item) => item.id}
       contentContainerStyle={styles.list}
-      ListFooterComponent={<PortfolioManager session={session!} />}
+      ListFooterComponent={demoMode ? (
+        <View style={styles.demoFooter}>
+          <Text style={styles.demoTitle}>Portfolio manager</Text>
+          <Text style={styles.demoNote}>Connect a real Supabase admin account to test photo uploads.</Text>
+        </View>
+      ) : <PortfolioManager session={session!} />}
       renderItem={({ item }) => <View style={styles.card}>
         <View style={styles.cardTop}>
           <Text style={styles.slot}>{formatDate(item.appointment_date)}</Text>
@@ -230,6 +303,12 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#09090b' },
   center: { flex: 1, justifyContent: 'center', padding: 24 },
   loginCard: { gap: 14, borderRadius: 22, borderWidth: 1, borderColor: '#27272a', backgroundColor: '#18181b', padding: 22 },
+  demoBox: { gap: 5, borderRadius: 12, borderWidth: 1, borderColor: '#854d0e', backgroundColor: '#422006', padding: 12 },
+  demoTitle: { color: '#fde68a', fontWeight: '800', fontSize: 13 },
+  demoText: { color: '#fef3c7', fontSize: 13 },
+  demoNote: { color: '#d6d3d1', fontSize: 12, lineHeight: 17, marginTop: 3 },
+  demoBanner: { color: '#fde68a', backgroundColor: '#422006', marginHorizontal: 20, marginBottom: 8, padding: 10, borderRadius: 10, fontSize: 12, fontWeight: '700' },
+  demoFooter: { gap: 5, borderRadius: 16, borderWidth: 1, borderColor: '#854d0e', backgroundColor: '#18181b', padding: 16, marginTop: 8 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 18, paddingBottom: 12 },
   toolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12 },
   eyebrow: { color: '#a1a1aa', fontSize: 11, fontWeight: '700', letterSpacing: 2 },
