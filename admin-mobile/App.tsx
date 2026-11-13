@@ -199,6 +199,13 @@ export default function App() {
     }
   }
 
+  function openLocalDemo() {
+    if (!__DEV__) return;
+    setError('');
+    setDemoMode(true);
+    setAppointments(getDemoAppointments());
+  }
+
   async function signOut() {
     if (demoMode) {
       setDemoMode(false);
@@ -249,6 +256,11 @@ export default function App() {
           <Pressable accessibilityRole="button" onPress={signIn} disabled={loading || !email.trim() || !password} style={({ pressed }) => [styles.button, pressed && styles.pressed, (loading || !email.trim() || !password) && styles.disabled]}>
             {loading ? <ActivityIndicator color="#111" /> : <Text style={styles.buttonText}>Sign in</Text>}
           </Pressable>
+          {__DEV__ ? (
+            <Pressable accessibilityRole="button" onPress={openLocalDemo} style={({ pressed }) => [styles.demoButton, pressed && styles.pressed]}>
+              <Text style={styles.demoButtonText}>Open local demo</Text>
+            </Pressable>
+          ) : null}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>;
@@ -317,6 +329,8 @@ const styles = StyleSheet.create({
   input: { minHeight: 50, borderRadius: 12, borderWidth: 1, borderColor: '#3f3f46', backgroundColor: '#09090b', color: '#fafafa', paddingHorizontal: 14, fontSize: 15 },
   button: { minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: '#fbbf24', marginTop: 4 },
   buttonText: { color: '#18181b', fontWeight: '800', fontSize: 15 },
+  demoButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: '#854d0e', backgroundColor: '#422006' },
+  demoButtonText: { color: '#fde68a', fontWeight: '800', fontSize: 14 },
   pressed: { opacity: 0.8 },
   disabled: { opacity: 0.5 },
   error: { color: '#fca5a5', fontSize: 13, lineHeight: 19 },
