@@ -1,81 +1,70 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-key";
+const supabasePublicKey =
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  "placeholder-key";
+const configuredPublicKey =
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 // Auto-detect: use real Supabase only if valid credentials are set (not placeholder values)
 const supabaseConfigured =
   Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
   !process.env.NEXT_PUBLIC_SUPABASE_URL?.includes("placeholder") &&
-  Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) &&
-  !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.includes("placeholder");
+  Boolean(configuredPublicKey) &&
+  !configuredPublicKey?.includes("placeholder");
 
-const useRealSupabase = supabaseConfigured || process.env.USE_REAL_SUPABASE === "true";
+const useRealSupabase = supabaseConfigured;
 
-let fs: any;
-let path: any;
-if (typeof window === "undefined") {
-  try {
-    fs = require("fs");
-    path = require("path");
-  } catch (e) {
-    // Node modules not available
-  }
+if (process.env.NODE_ENV === "production" && !supabaseConfigured) {
+  throw new Error(
+    "Supabase is required in production. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY."
+  );
 }
 
 const isBrowser = typeof window !== "undefined";
+const serverMockData: Record<string, any[]> = {
+  reviews: [
+    {
+      id: "r1",
+      customer_name: "Alice Johnson",
+      rating: 5,
+      comment: "Amazing sticker application! Extremely clean lines and professional installation.",
+      created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    },
+    {
+      id: "r2",
+      customer_name: "Bob Miller",
+      rating: 4,
+      comment: "Great experience, sticker looks perfect on my laptop. Quick and friendly service.",
+      created_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+    },
+    {
+      id: "r3",
+      customer_name: "Charlie Davis",
+      rating: 5,
+      comment: "Excellent custom design assistance. They helped me refine the logo and it looks great!",
+      created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    },
+  ],
+  appointments: [],
+  blocked_dates: [],
+  blocked_time_slots: [],
+  portfolio_items: [],
+};
 
 function getMockDataSync(table: string): any[] {
-  if (isBrowser) {
-    const val = localStorage.getItem(`mock_${table}`);
-    if (val) {
-      try {
-        return JSON.parse(val);
-      } catch (e) {}
-    }
-    return [];
-  } else {
-    if (!fs || !path) return [];
-    const dbPath = path.join(process.cwd(), "mock_db.json");
-    if (!fs.existsSync(dbPath)) {
-      const initialDb: Record<string, any[]> = {
-        reviews: [
-          {
-            id: "r1",
-            customer_name: "Alice Johnson",
-            rating: 5,
-            comment: "Amazing sticker application! Extremely clean lines and professional installation.",
-            created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
-          },
-          {
-            id: "r2",
-            customer_name: "Bob Miller",
-            rating: 4,
-            comment: "Great experience, sticker looks perfect on my laptop. Quick and friendly service.",
-            created_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString()
-          },
-          {
-            id: "r3",
-            customer_name: "Charlie Davis",
-            rating: 5,
-            comment: "Excellent custom design assistance. They helped me refine the logo and it looks great!",
-            created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-          }
-        ],
-        appointments: [],
-        blocked_dates: [],
-        blocked_time_slots: []
-      };
-      fs.writeFileSync(dbPath, JSON.stringify(initialDb, null, 2), "utf-8");
-      return initialDb[table] || [];
-    }
+  if (!isBrowser) return serverMockData[table] || [];
+
+  const val = localStorage.getItem(`mock_${table}`);
+  if (val) {
     try {
-      const db = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
-      return db[table] || [];
-    } catch (e) {
-      return [];
-    }
+      return JSON.parse(val);
+    } catch {}
   }
+  return [];
 }
 
 async function getMockData(table: string): Promise<any[]> {
@@ -121,26 +110,8 @@ async function insertMockData(table: string, data: any): Promise<{ data: any; er
     const updated = [...current, ...newItems];
     localStorage.setItem(`mock_${table}`, JSON.stringify(updated));
     return { data: Array.isArray(data) ? newItems : newItems[0], error: null };
-  } else {
-    if (!fs || !path) return { data: null, error: { message: "FS not loaded" } };
-    const dbPath = path.join(process.cwd(), "mock_db.json");
-    let db: Record<string, any[]> = { reviews: [], appointments: [], blocked_dates: [], blocked_time_slots: [] };
-    if (fs.existsSync(dbPath)) {
-      try {
-        db = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
-      } catch (e) {}
-    }
-    const items = Array.isArray(data) ? data : [data];
-    const newItems = items.map((item: any) => ({
-      id: item.id || Math.random().toString(36).substring(2, 9),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      ...item
-    }));
-    db[table] = [...(db[table] || []), ...newItems];
-    fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), "utf-8");
-    return { data: Array.isArray(data) ? newItems : newItems[0], error: null };
   }
+  return { data: null, error: { message: "Mock writes must be sent from the browser API" } };
 }
 
 async function deleteMockData(table: string, column: string, value: any): Promise<{ data: any; error: any }> {
@@ -161,18 +132,8 @@ async function deleteMockData(table: string, column: string, value: any): Promis
     const updated = current.filter(item => item[column] !== value);
     localStorage.setItem(`mock_${table}`, JSON.stringify(updated));
     return { data: null, error: null };
-  } else {
-    if (!fs || !path) return { data: null, error: { message: "FS not loaded" } };
-    const dbPath = path.join(process.cwd(), "mock_db.json");
-    if (fs.existsSync(dbPath)) {
-      try {
-        const db = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
-        db[table] = (db[table] || []).filter((item: any) => item[column] !== value);
-        fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), "utf-8");
-      } catch (e) {}
-    }
-    return { data: null, error: null };
   }
+  return { data: null, error: { message: "Mock writes must be sent from the browser API" } };
 }
 
 class MockQueryBuilder {
@@ -289,7 +250,7 @@ class MockQueryBuilder {
 
 // Create the export client
 export const supabase = useRealSupabase
-  ? createClient(supabaseUrl, supabaseAnonKey)
+  ? createClient(supabaseUrl, supabasePublicKey)
   : ({
       from: (table: string) => new MockQueryBuilder(table),
     } as any);

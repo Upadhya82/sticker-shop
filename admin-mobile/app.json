@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "Ruwan Sticker Admin",
+    "slug": "sticker-shop-admin",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#09090b"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.stickershop.admin"
+    },
+    "android": {
+      "package": "com.stickershop.admin",
+      "adaptiveIcon": {
+        "backgroundColor": "#09090b"
+      }
+    },
+    "plugins": [
+      "expo-sqlite",
+      "expo-notifications",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Ruwan Sticker Admin to choose a completed project photo.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ]
+    ]
+  }
+}

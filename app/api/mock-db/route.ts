@@ -2,7 +2,14 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 
-const dbPath = path.join(process.cwd(), "mock_db.json");
+const dbPath = path.join(/*turbopackIgnore: true*/ process.cwd(), "mock_db.json");
+const allowedTables = new Set([
+  "reviews",
+  "appointments",
+  "blocked_dates",
+  "blocked_time_slots",
+  "portfolio_items",
+]);
 
 type DbSchema = {
   reviews: Array<Record<string, unknown>>;
@@ -42,6 +49,7 @@ function readDb(): DbSchema {
       appointments: [],
       blocked_dates: [],
       blocked_time_slots: [],
+      portfolio_items: [],
     };
     fs.writeFileSync(dbPath, JSON.stringify(initialDb, null, 2), "utf-8");
     return initialDb;
@@ -52,7 +60,7 @@ function readDb(): DbSchema {
     return JSON.parse(data) as DbSchema;
   } catch (e) {
     console.error("Error reading mock DB:", e);
-    return { reviews: [], appointments: [], blocked_dates: [], blocked_time_slots: [] };
+    return { reviews: [], appointments: [], blocked_dates: [], blocked_time_slots: [], portfolio_items: [] };
   }
 }
 
@@ -66,20 +74,33 @@ function writeDb(data: DbSchema) {
 }
 
 export async function GET(request: Request) {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Mock database is disabled in production" }, { status: 404 });
+  }
+
   const { searchParams } = new URL(request.url);
   const table = searchParams.get("table");
 
-  const db = readDb();
-  if (table) {
-    return NextResponse.json(db[table] || []);
+  if (!table || !allowedTables.has(table)) {
+    return NextResponse.json({ error: "A supported table name is required" }, { status: 400 });
   }
-  return NextResponse.json(db);
+
+  const db = readDb();
+  return NextResponse.json(db[table] || []);
 }
 
 export async function POST(request: Request) {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Mock database is disabled in production" }, { status: 404 });
+  }
+
   try {
     const body = await request.json();
     const { action, table, data, column, value } = body;
+
+    if (typeof table !== "string" || !allowedTables.has(table)) {
+      return NextResponse.json({ error: "Unsupported table" }, { status: 400 });
+    }
 
     const db = readDb();
     if (!db[table]) {

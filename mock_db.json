@@ -32,6 +32,16 @@
       "service_type": "Sticker Apply",
       "appointment_date": "2026-06-14",
       "time_slot": "09:00"
+    },
+    {
+      "id": "oen9puw",
+      "created_at": "2026-11-12T20:28:40.230Z",
+      "updated_at": "2026-11-12T20:28:40.230Z",
+      "customer_name": "tJ",
+      "phone": "0702907878",
+      "service_type": "Sticker Remove",
+      "appointment_date": "2026-11-14",
+      "time_slot": "09:00"
     }
   ],
   "blocked_dates": [

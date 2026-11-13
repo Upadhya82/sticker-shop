@@ -2,6 +2,10 @@
 
 ## ✅ All Issues Fixed!
 
+> **Legacy notes:** This file describes an earlier demo state. The current project
+> setup is documented in [README](README.md), including the secure Supabase migration,
+> Expo admin app, work gallery, and push notification steps.
+
 Your application has been tested comprehensively and **all 7 critical/major issues have been fixed**.
 
 ---

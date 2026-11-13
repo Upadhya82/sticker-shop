@@ -1,7 +1,10 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import AdminDashboard from "@/components/AdminDashboard";
 
 export default function AdminPage() {
+  if (process.env.NODE_ENV === "production") redirect("/");
+
   return (
     <main className="mx-auto max-w-7xl px-5 py-10">
       {/* Header */}

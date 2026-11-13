@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "admin-mobile/.expo/**",
+    "admin-mobile/.expo-export/**",
+    "admin-mobile/.expo-home/**",
+    "admin-mobile/.npm-cache/**",
   ]),
 ]);
 

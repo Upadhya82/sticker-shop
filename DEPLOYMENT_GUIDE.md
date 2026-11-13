@@ -1,5 +1,10 @@
 # 🚀 Deployment Guide - Sticker Shop
 
+> **Older guide:** This predates the separate admin mobile app and current RLS
+> migration. Use the root [README](README.md) for the current deploy checklist and
+> the trusted `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` setting. Do not deploy the old
+> unauthenticated `/admin` page or apply demo policies from earlier setup documents.
+
 Your project is a **Next.js + Supabase** app. Here are the best deployment options:
 
 ---

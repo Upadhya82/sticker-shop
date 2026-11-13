@@ -1,5 +1,11 @@
 # Admin Dashboard - Database Setup
 
+> **Legacy demo instructions:** The policies in this guide allow unauthenticated
+> users to modify admin data. Do not use them for a live site. Use the secure shared
+> migration in `supabase/migrations/202611130001_secure_shared_booking_backend.sql`
+> and the owner sign-in in `admin-mobile/` instead. The old `/admin` web route is not
+> protected by login and should not be published for production use.
+
 ## Create Blocked Dates Table
 
 Run this SQL in your Supabase SQL Editor to set up the admin dashboard:

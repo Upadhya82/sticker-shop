@@ -1,4 +1,5 @@
 // Quick test script to check if appointments are in the database
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { createClient } = require("@supabase/supabase-js");
 const fs = require("fs");
 const path = require("path");

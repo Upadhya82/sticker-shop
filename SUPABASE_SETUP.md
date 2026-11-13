@@ -1,5 +1,11 @@
 # Supabase Setup Guide
 
+> **Production setup update:** This document contains older demo policies that allow
+> public writes. For a new setup, use the secure migration in
+> `supabase/migrations/202611130001_secure_shared_booking_backend.sql` as described in
+> the current [README](README.md). If the old demo policies are already installed,
+> the migration replaces them. Do not re-run the public write policy snippets below.
+
 This guide will help you set up Supabase for the Sticker Shop application.
 
 ## Step 1: Create Database Tables
@@ -106,7 +112,7 @@ WITH CHECK (true);
 
 2. Fill in your Supabase credentials:
    - `NEXT_PUBLIC_SUPABASE_URL`: Your Supabase project URL
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Your Supabase anonymous public key
+   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: Your Supabase publishable key
 
 3. Both values can be found in your Supabase project:
    - Go to https://supabase.com/dashboard

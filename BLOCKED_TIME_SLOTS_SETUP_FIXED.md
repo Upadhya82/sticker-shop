@@ -1,6 +1,10 @@
 # ⏰ Time Slot Blocking - Fixed SQL Setup
 
-Use this SQL if you get policy already exists error.
+> **Legacy demo setup:** This file drops and recreates the time-slot table and grants
+> public write access. Do not run it on a live database or after bookings exist. The
+> current secure migration creates this table with admin-only write access.
+
+Use this SQL only for the old demo setup if you get a policy already exists error.
 
 ## 🔧 Fixed SQL (Drop & Recreate)
 

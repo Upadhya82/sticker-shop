@@ -41,8 +41,8 @@ export default function ReviewForm() {
       setCustomerName('');
       setRating(5);
       setComment('');
-    } catch (err: any) {
-      setErrorMsg(err?.message ?? 'Something went wrong');
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
       setLoading(false);
     }
